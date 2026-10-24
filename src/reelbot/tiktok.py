@@ -119,12 +119,13 @@ def authorize(account: Account) -> None:
     server = HTTPServer(("localhost", REDIRECT_PORT), Handler)
     print(f"Opening browser. If it does not open, visit:\n{url}\n")
     webbrowser.open(url)
-    server.timeout = 300
-    while not received:
+    server.timeout = 5
+    deadline = time.time() + 300
+    while not (received.get("code") or received.get("error")) and time.time() < deadline:
         server.handle_request()
-        if not received:
-            raise TikTokError("Timed out waiting for TikTok authorization")
     server.server_close()
+    if not (received.get("code") or received.get("error")):
+        raise TikTokError("Timed out waiting for TikTok authorization")
 
     if received.get("state") != state:
         raise TikTokError("State mismatch; aborting")
