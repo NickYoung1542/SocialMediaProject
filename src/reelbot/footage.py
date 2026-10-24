@@ -58,6 +58,9 @@ PEOPLE_TAGS = {
     "face", "kid", "kids", "couple", "tourist", "tourists", "diver", "swimmer",
     "cartoon", "3d", "2d", "animated", "animation", "ai generated", "ai", "green screen", "illustration",
     "character", "christmas", "santa", "toy", "render", "carousel", "fair", "fairground", "ride", "festival",
+    "aerial", "drone", "top view", "bird's eye", "birds eye", "satellite", "silhouette", "map", "sunset", "sunrise",
+    "orca", "killer whale", "wallpaper", "fantasy", "screensaver", "porthole", "loop", "background", "abstract",
+    "digital", "cgi", "vfx", "effect", "effects", "seamless", "live wallpaper", "cinemagraph", "view from above",
 }
 
 
@@ -67,7 +70,8 @@ def _matches_animal(tags: str, animal: str) -> bool:
     tag_words = {w for t in tag_set for w in t.split()}
     stems = {w[:-1] if w.endswith("s") else w for w in words}
     has_animal = any(t.rstrip("s") in stems or t in words for t in tag_words)
-    return has_animal and not ((tag_set | tag_words) & PEOPLE_TAGS)
+    banned = PEOPLE_TAGS - set(words) - {animal.lower()}
+    return has_animal and not ((tag_set | tag_words) & banned)
 
 
 def _pixabay(query: str, used: set[str], animal: str | None = None) -> Media | None:
@@ -88,6 +92,59 @@ def _pixabay(query: str, used: set[str], animal: str | None = None) -> Media | N
                 dest = cache_dir() / f"pixabay_{hit['id']}.mp4"
                 return Media(_download(info["url"], dest), f"pixabay:{hit['id']}")
     return None
+
+
+GENERIC_TERMS = ["", "nature", "wildlife", "closeup", "walking", "eating", "swimming", "baby", "zoo", "slow motion", "habitat"]
+
+
+@dataclass
+class Candidate:
+    source_id: str
+    url: str
+    dest: Path
+
+    def fetch(self) -> Media:
+        return Media(_download(self.url, self.dest), self.source_id)
+
+
+def _pixabay_candidates(query: str, animal: str) -> list[Candidate]:
+    key = env("PIXABAY_API_KEY")
+    if not key:
+        return []
+    try:
+        resp = requests.get(PIXABAY_URL, params={"key": key, "q": query, "per_page": 50}, timeout=30)
+    except requests.RequestException:
+        return []
+    if resp.status_code != 200:
+        return []
+    found = []
+    for hit in resp.json().get("hits", []):
+        if hit["duration"] < 4 or not _matches_animal(hit.get("tags", ""), animal):
+            continue
+        for size in ("large", "medium"):
+            info = hit["videos"].get(size)
+            if info and info.get("url"):
+                found.append(Candidate(f"pixabay:{hit['id']}", info["url"], cache_dir() / f"pixabay_{hit['id']}.mp4"))
+                break
+    return found
+
+
+def clip_pool(animal: str, scene_queries: list[str], limit: int = 40, generic: bool = True) -> list[Candidate]:
+    """Distinct clips tagged with the animal, scene-specific searches first."""
+    seen: set[str] = set()
+    pool: list[Candidate] = []
+    queries = [q if animal.lower() in q.lower() else f"{animal} {q}" for q in scene_queries]
+    if generic:
+        queries += [f"{animal} {t}".strip() for t in GENERIC_TERMS]
+    for q in queries:
+        batch = [c for c in _pixabay_candidates(q, animal) if c.source_id not in seen]
+        random.shuffle(batch)
+        for c in batch:
+            seen.add(c.source_id)
+            pool.append(c)
+        if len(pool) >= limit:
+            break
+    return pool
 
 
 def find_media(query: str, animal: str, used: set[str]) -> Media | None:

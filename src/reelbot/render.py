@@ -32,7 +32,7 @@ def _aspect(path: Path) -> float:
         return 16 / 9
 
 
-def render_segment(media: Media, duration: float, dest: Path) -> None:
+def render_segment(media: Media, duration: float, dest: Path, start: float = 0.0) -> None:
     # Near-portrait clips fill the frame. Wider clips are shown whole over a blurred copy of
     # themselves, so cropping never cuts the animal off.
     if _aspect(media.path) <= 0.7:
@@ -44,7 +44,7 @@ def render_segment(media: Media, duration: float, dest: Path) -> None:
             f"[b]scale={W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]"
         )
     run_ffmpeg([
-        "-stream_loop", "-1", "-i", str(media.path), "-filter_complex", graph, "-map", "[v]",
+        "-stream_loop", "-1", "-ss", f"{start:.2f}", "-i", str(media.path), "-filter_complex", graph, "-map", "[v]",
         "-t", f"{duration:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "23", "-pix_fmt", "yuv420p", "-r", str(FPS), str(dest),
     ])

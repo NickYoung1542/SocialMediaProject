@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,11 +10,14 @@ from pathlib import Path
 from . import topics
 from .captions import build_ass
 from .config import Account, out_dir
-from .footage import find_media
+from .footage import clip_pool
 from .render import assemble, render_segment
 from .research import fetch_source
 from .script import ScriptRejected, write_script
 from .voice import probe_duration, synthesize_scenes
+
+MIN_CLIPS = 8
+SHOT_SECONDS = 3.2
 
 
 @dataclass
@@ -37,6 +41,14 @@ def generate(account: Account, animal: str | None = None, log=print) -> Result:
     title, source = fetch_source(animal)
     log(f"Source: Wikipedia '{title}' ({len(source)} chars)")
 
+    base_pool = clip_pool(animal, [])
+    log(f"Footage: {len(base_pool)} matching clips for {animal}")
+    if len(base_pool) < MIN_CLIPS:
+        reason = f"only {len(base_pool)} matching clips for {animal} (need {MIN_CLIPS})"
+        topics.record(conn, account.name, animal, angle, "held", str(folder))
+        (folder / "meta.json").write_text(json.dumps({"status": "held", "reason": reason}, indent=2))
+        return Result("held", folder, reason)
+
     try:
         script = write_script(account, animal, angle, source)
     except ScriptRejected as exc:
@@ -49,16 +61,27 @@ def generate(account: Account, animal: str | None = None, log=print) -> Result:
     total = audio[-1].start + audio[-1].duration
     log(f"Voiceover: {total:.1f}s")
 
+    pool = clip_pool(animal, [s.query for s in script.scenes])
     used: set[str] = set()
     segments: list[Path] = []
+    shot = 0
     for i, (scene, clip) in enumerate(zip(script.scenes, audio)):
-        media = find_media(scene.query, animal, used)
-        if media is None:
-            raise RuntimeError(f"No footage for scene {i} ({scene.query!r}); check PEXELS_API_KEY / PIXABAY_API_KEY")
-        seg = folder / f"seg_{i:02d}.mp4"
-        render_segment(media, clip.duration, seg)
-        segments.append(seg)
-        log(f"  scene {i + 1}/{len(script.scenes)}: {media.source_id}")
+        scene_clips = clip_pool(animal, [scene.query], limit=10, generic=False)
+        n_shots = max(1, round(clip.duration / SHOT_SECONDS))
+        shot_len = clip.duration / n_shots
+        for _ in range(n_shots):
+            choice = next((c for c in scene_clips + pool if c.source_id not in used), None)
+            reused = choice is None
+            if reused:
+                used.clear()
+                choice = scene_clips[0] if scene_clips else pool[0]
+            used.add(choice.source_id)
+            media = choice.fetch()
+            seg = folder / f"seg_{shot:02d}.mp4"
+            render_segment(media, shot_len, seg, start=random.uniform(0, 3) if reused else 0.0)
+            segments.append(seg)
+            shot += 1
+        log(f"  scene {i + 1}/{len(script.scenes)}: {n_shots} shots")
 
     build_ass([w for a in audio for w in a.words], folder / "captions.ass")
     final = folder / "video.mp4"
