@@ -53,14 +53,33 @@ def _pexels(query: str, used: set[str]) -> Media | None:
     return None
 
 
-def _pixabay(query: str, used: set[str]) -> Media | None:
+PEOPLE_TAGS = {
+    "man", "men", "woman", "women", "people", "person", "girl", "boy", "child", "children", "family", "crowd",
+    "face", "kid", "kids", "couple", "tourist", "tourists", "diver", "swimmer",
+    "cartoon", "3d", "2d", "animated", "animation", "ai generated", "ai", "green screen", "illustration",
+    "character", "christmas", "santa", "toy", "render", "carousel", "fair", "fairground", "ride", "festival",
+}
+
+
+def _matches_animal(tags: str, animal: str) -> bool:
+    words = [w.lower() for w in animal.replace("-", " ").split()]
+    tag_set = {t.strip().lower() for t in tags.split(",") if t.strip()}
+    tag_words = {w for t in tag_set for w in t.split()}
+    stems = {w[:-1] if w.endswith("s") else w for w in words}
+    has_animal = any(t.rstrip("s") in stems or t in words for t in tag_words)
+    return has_animal and not ((tag_set | tag_words) & PEOPLE_TAGS)
+
+
+def _pixabay(query: str, used: set[str], animal: str | None = None) -> Media | None:
     key = env("PIXABAY_API_KEY")
     if not key:
         return None
-    resp = requests.get(PIXABAY_URL, params={"key": key, "q": query, "per_page": 20}, timeout=30)
+    resp = requests.get(PIXABAY_URL, params={"key": key, "q": query, "per_page": 50}, timeout=30)
     if resp.status_code != 200:
         return None
     hits = [h for h in resp.json().get("hits", []) if f"pixabay:{h['id']}" not in used and h["duration"] >= 4]
+    if animal:
+        hits = [h for h in hits if _matches_animal(h.get("tags", ""), animal)]
     random.shuffle(hits)
     for hit in hits:
         for size in ("large", "medium"):
@@ -72,10 +91,21 @@ def _pixabay(query: str, used: set[str]) -> Media | None:
 
 
 def find_media(query: str, animal: str, used: set[str]) -> Media | None:
-    for search in (_pexels, _pixabay):
-        for q in (query, animal):
-            media = search(q, used)
-            if media:
-                used.add(media.source_id)
-                return media
+    # Every query must contain the animal's name, and Pixabay results must be tagged with it.
+    scene_q = query if animal.lower() in query.lower() else f"{animal} {query}"
+    for q in (scene_q, animal):
+        media = _pixabay(q, used, animal)
+        if media:
+            used.add(media.source_id)
+            return media
+    # Reuse clips of the right animal rather than showing something unrelated.
+    media = _pixabay(animal, set(), animal)
+    if media:
+        used.add(media.source_id)
+        return media
+    for q in (scene_q, animal):
+        media = _pexels(q, used)
+        if media:
+            used.add(media.source_id)
+            return media
     return None
