@@ -19,10 +19,32 @@ def run_ffmpeg(args: list[str], cwd: Path | None = None) -> None:
         raise RuntimeError(f"ffmpeg failed: {proc.stderr[-800:]}")
 
 
+def _aspect(path: Path) -> float:
+    proc = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    try:
+        w, h = (int(x) for x in proc.stdout.strip().split(",")[:2])
+        return w / h
+    except ValueError:
+        return 16 / 9
+
+
 def render_segment(media: Media, duration: float, dest: Path) -> None:
-    vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1"
+    # Near-portrait clips fill the frame. Wider clips are shown whole over a blurred copy of
+    # themselves, so cropping never cuts the animal off.
+    if _aspect(media.path) <= 0.7:
+        graph = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v]"
+    else:
+        graph = (
+            f"[0:v]split[a][b];"
+            f"[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=30:5,eq=brightness=-0.1[bg];"
+            f"[b]scale={W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]"
+        )
     run_ffmpeg([
-        "-stream_loop", "-1", "-i", str(media.path), "-vf", vf,
+        "-stream_loop", "-1", "-i", str(media.path), "-filter_complex", graph, "-map", "[v]",
         "-t", f"{duration:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "23", "-pix_fmt", "yuv420p", "-r", str(FPS), str(dest),
     ])
