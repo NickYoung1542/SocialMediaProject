@@ -1,0 +1,19 @@
+name = "animals"
+niche = "wild animals"
+style = "calm, awe-inspiring nature documentary narrator"
+
+[voice]
+name = "en-GB-RyanNeural"
+rate = "+0%"
+pitch = "+0Hz"
+
+[video]
+min_seconds = 61
+max_seconds = 95
+
+# mode "draft": uploads to your TikTok inbox; open the app and tap Post (works before the API audit).
+# mode "direct": posts automatically. Until the audit passes, TikTok forces SELF_ONLY (private).
+# privacy (direct only): PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY
+[tiktok]
+mode = "draft"
+privacy = "SELF_ONLY"

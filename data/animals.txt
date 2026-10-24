@@ -1,0 +1,61 @@
+Lion|predators
+Tiger|predators
+Snow Leopard|predators
+Polar Bear|predators
+Grey Wolf|predators
+Komodo Dragon|predators
+Great White Shark|ocean
+Orca|ocean
+Octopus|ocean
+Mantis Shrimp|ocean
+Sea Otter|ocean
+Humpback Whale|ocean
+Manta Ray|ocean
+Seahorse|ocean
+Blue-ringed Octopus|ocean
+Anglerfish|ocean
+Giant Squid|ocean
+Sea Turtle|ocean
+Narwhal|ocean
+Jellyfish|ocean
+Bald Eagle|birds
+Peregrine Falcon|birds
+Emperor Penguin|birds
+Owl|birds
+Hummingbird|birds
+Albatross|birds
+Flamingo|birds
+Crow|birds
+Cassowary|birds
+Peacock|birds
+African Elephant|mammals
+Giraffe|mammals
+Gorilla|mammals
+Chimpanzee|mammals
+Sloth|mammals
+Pangolin|mammals
+Platypus|mammals
+Honey Badger|mammals
+Capybara|mammals
+Red Panda|mammals
+Meerkat|mammals
+Koala|mammals
+Kangaroo|mammals
+Hippopotamus|mammals
+Cheetah|mammals
+Bat|mammals
+Tasmanian Devil|mammals
+Axolotl|reptiles and amphibians
+King Cobra|reptiles and amphibians
+Chameleon|reptiles and amphibians
+Saltwater Crocodile|reptiles and amphibians
+Poison Dart Frog|reptiles and amphibians
+Galapagos Tortoise|reptiles and amphibians
+Leafcutter Ant|insects and arachnids
+Monarch Butterfly|insects and arachnids
+Honey Bee|insects and arachnids
+Praying Mantis|insects and arachnids
+Tarantula|insects and arachnids
+Dragonfly|insects and arachnids
+Tardigrade|insects and arachnids
+Bombardier Beetle|insects and arachnids
